@@ -433,7 +433,7 @@ def save_data(data, path='./', name='untitled'):
 
 
 def process():
-    general_path = os.path.join(os.getcwd())
+    general_path = os.path.join(os.path.dirname(__file__), '..', '..')
     data_path = os.path.join(general_path, 'data')
     interim_data_path = os.path.join(data_path, 'interim')
     raw_data_path = os.path.join(data_path, 'raw')

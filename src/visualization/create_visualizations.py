@@ -249,7 +249,7 @@ def generate_calendarlike_plot(netflix_data, image_path='./', cmap=None,
         save_name = f'{image_path}img3_netflix_horas_mes_anio' \
                     f'__{filter_profile_name}.pdf'
 
-    plt.savefig(save_name,bbox_inches='tight')
+    plt.savefig(save_name, bbox_inches='tight')
     plt.close()
 
 
@@ -287,7 +287,7 @@ def process():
     None
     """
     colormap = initialize_configuration()
-    general_path = os.path.join(os.getcwd())
+    general_path = os.path.join(os.path.dirname(__file__), '..', '..')
     data_path = os.path.join(general_path, 'data')
     interim_data_path = os.path.join(data_path, 'interim')
     interest_data_file = os.path.join(
