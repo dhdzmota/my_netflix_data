@@ -25,7 +25,7 @@ def extract_zip_files(file, extract_to):
 
 
 def process():
-    general_path = os.path.join(os.getcwd())
+    general_path = os.path.join(os.path.dirname(__file__), '..', '..')
     raw_data_path = os.path.join(general_path, 'data/raw')
     file_name_path = os.path.join(raw_data_path, 'netflix-report.zip')
     new_folder_path = os.path.join(raw_data_path, 'netflix-report')

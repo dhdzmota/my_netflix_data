@@ -9,7 +9,7 @@ The first step is to acquire the netflix information by accessing the following 
 Now, you can save the zip file in the following path as follows: `data/raw/netflix-report.zip`.
 
 Once this is done, we can finally extract the information and generate the report. To do this you can easily run
-the _pipe_flow.py_ file.
+the _pipeline_flow.py_ file.
 
 If you want to see the step-by-step execution, refer to that file as well.
 
@@ -38,6 +38,7 @@ Project Organization
     │                         generated with `pip freeze > requirements.txt`
     │
     ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
+    ├── pipeline_flow.py   <- Runs most important files to execute the report successfully. 
     ├── src                <- Source code for use in this project.
     │   ├── __init__.py    <- Makes src a Python module
     │   │
