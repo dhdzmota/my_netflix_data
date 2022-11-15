@@ -15,7 +15,25 @@ the _pipeline_flow.py_ file: `python pipeline_flow.py`
 
 If you want to see the step-by-step execution, refer to that file as well.
 
-Project Organization
+This small proyect will allow you to make the following netflix analysis:
+
+###  Duration on netfilx:
+Profile seggregated duration on netflix over time.
+![image](./reports/figures/img/img1.PNG)
+---
+
+### Series representation:
+A tv-series represented as a time series to see when and at what hour each chapter was seen.
+![image](./reports/figures/img/img2.PNG)
+---
+
+### Hour time heatmap:
+Heatmap that is a calendar-like plot to see which months over the course of the profile generation have been the ones the more time was spent.
+![image](./reports/figures/img/img3.PNG)
+---
+
+
+## Project Organization
 ------------
 
     ├── LICENSE
