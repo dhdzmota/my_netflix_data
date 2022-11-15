@@ -1,5 +1,8 @@
+import logging
 import os
+
 from zipfile import ZipFile
+from time import perf_counter
 
 
 def extract_zip_files(file, extract_to):
@@ -19,8 +22,13 @@ def extract_zip_files(file, extract_to):
     -------
     None
     """
+    tick = perf_counter()
+    logging.info(f'Extracting files.')
     with ZipFile(file, 'r') as zip_f:
         zip_f.extractall(extract_to)
+    tock = perf_counter()
+    time_it_took = tock - tick
+    logging.info(f'Extracting files took {time_it_took} seconds.')
     return None
 
 
