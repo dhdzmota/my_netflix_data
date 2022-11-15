@@ -1,6 +1,9 @@
 import datetime
+import logging
 import os
 import pandas as pd
+
+from time import perf_counter
 
 
 def process_netflix_data(df):
@@ -27,10 +30,14 @@ def process_netflix_data(df):
 
     """
     # Transform columns for an easier manipulation
+    tick = perf_counter()
+    logging.info(f'Renaming columns.')
+
     new_columns = {
         col: col.lower().strip().replace(' ', '_')
         for col in df.columns
     }
+    logging.info(f'Renaming columns: {new_columns}.')
     df.rename(columns=new_columns, inplace=True)
 
     # Anonymize the different profiles
@@ -39,27 +46,39 @@ def process_netflix_data(df):
         for num, profile_name
         in enumerate(df.profile_name.unique())
     }
+    logging.info(f'Renaming profile_name: {profiles_dict}.')
     df.profile_name = df.profile_name.apply(
         lambda x: profiles_dict[x]
     )
     # Transform star_time into a datetime
     df.start_time = pd.to_datetime(df.start_time)
     df.start_time = df.start_time  # - datetime.timedelta(hours=6)
+    logging.info(f'Getting duration as time_delta.')
+
     df.duration = df.duration.apply(
         get_duration_timedelta
     )
+    logging.info(f'Getting end_time from duration time_delta.')
     df['end_time'] = df.start_time + df.duration
     df.duration = df.duration.apply(
         lambda x: x.total_seconds()
     )
+    logging.info(f'Changing title to new_title.')
     df['new_title'] = df.title.apply(lambda x: x.split(':')[0])
+
+    logging.info(f'Removing non-played by profile.')
     df_no_auto_played = df[df.attributes.isna()]
     netflix_data = df_no_auto_played[
         df_no_auto_played.supplemental_video_type.isna()
     ]
     non_used_cols = ['attributes', 'supplemental_video_type']
-    netflix_data.drop(non_used_cols, axis=1, inplace=True)
+    logging.info(f'Removing non_used_columns: {non_used_cols}.')
 
+    netflix_data.drop(non_used_cols, axis=1, inplace=True)
+    logging.info(f'Removing non_used_columns: {non_used_cols}.')
+    tock = perf_counter()
+    time_it_took = tock - tick
+    logging.info(f'Processing netflix data took {time_it_took} seconds.')
     return netflix_data
 
 
@@ -82,6 +101,10 @@ def get_duration_timedelta(string_time=None, time_format="%H:%M:%S"):
         different datetime operations.
 
     """
+    logging.info(
+        f'Transforming the string time "{string_time}" into datetime.'
+    )
+
     strptime = datetime.datetime.strptime(string_time, time_format).time()
     timedelta = datetime.timedelta(
         hours=strptime.hour,
@@ -107,6 +130,7 @@ def get_netflix_data(data_path):
         A data frame with the information of the processed netflix data.
 
     """
+    logging.info(f'Getting the netflix information')
     netflix_data_all = pd.read_csv(data_path)
     processed_netflix_data = process_netflix_data(netflix_data_all)
     netflix_data_with_series = identify_series_in_data(processed_netflix_data)
@@ -146,7 +170,7 @@ def identify_series_in_data(netflix_data):
         " : Episodio ",
         "(Episodio ",
     ]
-
+    logging.info(f'Identifying if title contains any of: {series_traits_list}')
     series_trait_df = netflix_data.title == 'initialization of a false series'
     for series_trait in series_traits_list:
         series_trait_df += netflix_data.title.str.contains(
@@ -188,9 +212,10 @@ def movie_and_series_information(df, profile=''):
             - movies_information: Df of the resumed information of the movies.
             - series_information: Df of the resumed information of the series.
     """
-
+    tick = perf_counter()
     # We are filtering through a single profile.
     if profile:
+        logging.info(f'Filtering netlfix data to only profile:{profile}.')
         data = df[df.profile_name == profile]
     else:
         data = df.copy()
@@ -199,7 +224,7 @@ def movie_and_series_information(df, profile=''):
         data.title.value_counts()
     )
 
-    # Data for movies
+    logging.info(f'Analyzing only movies data.')
     movies = data[data.is_serie == False]
     movies_information = movies \
         .groupby('title') \
@@ -207,10 +232,16 @@ def movie_and_series_information(df, profile=''):
         .drop_duplicates('title')
 
     # Data for series
+    logging.info(f'Analyzing only series data.')
     series = data[data.is_serie == True]
     series_information = series\
         .groupby('new_title')\
         .apply(get_series_info)
+    tock = perf_counter()
+    time_it_took = tock - tick
+    logging.info(
+        f'Getting movies and series info took {time_it_took} seconds.'
+    )
     information = movies, series, movies_information, series_information
     return information
 
@@ -240,6 +271,7 @@ def merge_different_individual_start(df):
         Dataframe with the new grouped columns and without other columns.
 
     """
+    tick = perf_counter()
     df['start_time_list'] = [df.start_time.to_list()] * len(df)
     df['end_time_list'] = [df.end_time.to_list()] * len(df)
     df['bookmark_list'] = [df.bookmark.to_list()] * len(df)
@@ -257,6 +289,11 @@ def merge_different_individual_start(df):
         if col in df.columns:
             df = df.drop(col, axis=1)
     df_simplified = df.reset_index()
+    tock = perf_counter()
+    time_it_took = tock - tick
+    logging.info(
+        f'Mergeing different individual start took {time_it_took} seconds.'
+    )
     return df_simplified
 
 
@@ -281,6 +318,10 @@ def get_series_info(df):
          series.
 
     """
+    tick = perf_counter()
+    logging.info(
+        f'Getting additional series information.'
+    )
     total_duration = df.duration.sum() / 3600
     max_end_time = df.end_time.max()
     min_start_time = df.start_time.min()
@@ -328,6 +369,11 @@ def get_series_info(df):
         'waiting_time_max': waiting_time_max,
         'waiting_time_min': waiting_time_min,
     }
+    tock = perf_counter()
+    time_it_took = tock - tick
+    logging.info(
+        f'Getting additional series info took {time_it_took} seconds.'
+    )
     results = pd.Series(results)
     return results
 
@@ -369,6 +415,8 @@ def arrange_information_in_dict(general_ms, profile_ms):
         Dictionary with the resumed information.
 
     """
+    tick = perf_counter()
+    logging.info(f'Arranging information.')
     info_series_movies = {'general': {}}
     sub_names = ['movie', 'series', 'movie_info', 'series_info']
     for index, sub_dataset in enumerate(sub_names):
@@ -379,6 +427,12 @@ def arrange_information_in_dict(general_ms, profile_ms):
         for index, sub_dataset in enumerate(sub_names):
             info_series_movies[f'profile_{profile_num}'][sub_dataset] = \
                 profile_ms[profile_num][index]
+    logging.info(f'General keys: {info_series_movies.keys()}')
+    tock = perf_counter()
+    time_it_took = tock-tick
+    logging.info(
+        f'Arranging information took {time_it_took} seconds.'
+    )
     return info_series_movies
 
 
@@ -400,6 +454,8 @@ def save_dict_data(dict_data, path='./'):
     None
 
     """
+    tick = perf_counter()
+    logging.info('Saving info...')
     for key in dict_data.keys():
         for info in dict_data[key].keys():
             data = dict_data[key][info]
@@ -408,6 +464,10 @@ def save_dict_data(dict_data, path='./'):
                 path=path,
                 name=f'{key}_{info}'
             )
+
+    tock = perf_counter()
+    time_it_took = tock-tick
+    logging.info(f'Saving information took {time_it_took} seconds.')
 
 
 def save_data(data, path='./', name='untitled'):
@@ -430,9 +490,11 @@ def save_data(data, path='./', name='untitled'):
     """
     final_name = f'{path}/{name}.csv'
     data.to_csv(final_name, index=False)
+    logging.info(f'File {name}.csv saved into {path}...')
 
 
 def process():
+    tick = perf_counter()
     general_path = os.path.join(os.path.dirname(__file__), '..', '..')
     data_path = os.path.join(general_path, 'data')
     interim_data_path = os.path.join(data_path, 'interim')
@@ -452,7 +514,9 @@ def process():
     )
     save_data(data=netflix_data, path=interim_data_path, name='netflix_data')
     save_dict_data(dict_data=ms_information, path=interim_data_path)
-
+    tock = perf_counter()
+    time_it_took = tock-tick
+    logging.info(f'Process took {time_it_took} seconds.')
 
 if __name__ == "__main__":
     process()

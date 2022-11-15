@@ -1,14 +1,16 @@
 import datetime
+import logging
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import seaborn as sns
 import os
 import pandas as pd
+import seaborn as sns
 import warnings
 
 from ast import literal_eval
 from PyPDF2 import PdfMerger
 from sklearn.cluster import DBSCAN
+from time import perf_counter
 
 from src.data.fetch_information import (
     get_processed_netflix_data,
@@ -35,10 +37,14 @@ def initialize_configuration():
          different tones).
 
     """
+    logging.info('Initializing configuration')
     warnings.filterwarnings("ignore")
+    logging.info('Ignoring warinigs.')
+    colorlist = ['red', 'black']
     colormap = mpl.colors.LinearSegmentedColormap.from_list(
-        "", ['red', 'black']
+        "", colorlist
     ).resampled(100)
+    logging.info(f'Colormap uses colrlist: {colorlist}.')
     return colormap
 
 
@@ -65,6 +71,7 @@ def get_stacked_profile_duration(netflix_data, image_path='./', cmap=None):
     -------
     None
     """
+    logging.info(f'Getting stacked profile duration file.')
     pivoted_data = get_pivoted_data(netflix_data)
     pivoted_data_filtered = pivoted_data[
         [col for col in pivoted_data.columns if
@@ -113,6 +120,7 @@ def get_stacked_profile_proportion(netflix_data, image_path='./', cmap=None):
     -------
     None
     """
+    logging.info(f'Getting stacked profile proportion file.')
     pivoted_data = get_pivoted_data(netflix_data)
     pivoted_data_filtered = pivoted_data[
         [col for col in pivoted_data.columns if
@@ -138,10 +146,12 @@ def get_stacked_profile_proportion(netflix_data, image_path='./', cmap=None):
     title_str = 'Proporción de tiempo en netflix para cada perfil.'
     plt.title(title_str)
     plt.legend(bbox_to_anchor=(1.15, 0.5), loc="center right")
+    save_name = f'{image_path}img1_netflix_proporcion_fecha_perfil.pdf'
     plt.savefig(
-        f'{image_path}img1_netflix_proporcion_fecha_perfil.pdf',
+        save_name,
         bbox_inches='tight'
     )
+    logging.info(f'Saving plot into {save_name}')
     plt.close()
 
 
@@ -169,6 +179,7 @@ def plot_series_time(series_data_row, image_path='./', cmap=None):
     -------
     None
     """
+    logging.info(f'Getting plot of series over time.')
     series_title = series_data_row.new_title
     start_times = pd.to_datetime(literal_eval(series_data_row.all_start_times))
     hour = literal_eval(series_data_row.all_start_time_hours)
@@ -193,10 +204,13 @@ def plot_series_time(series_data_row, image_path='./', cmap=None):
     plt.grid(linestyle='--')
     ax.patch.set_facecolor('gainsboro')
     clean_title_text = clean_text(series_title)
+    save_name = f'{image_path}img2_series__{clean_title_text}.pdf'
     plt.savefig(
-        f'{image_path}img2_series__{clean_title_text}.pdf',
+        save_name,
         bbox_inches='tight'
     )
+    logging.info(f'Saving plot into {save_name}')
+
     plt.close()
 
 
@@ -224,8 +238,11 @@ def generate_calendarlike_plot(netflix_data, image_path='./', cmap=None,
     None
 
     """
+    logging.info(f'Getting calendarlike plot.')
+
     additional_string = ''
     if filter_profile_name:
+        logging.info(f'Plot for just profile {filter_profile_name}')
         netflix_data = netflix_data[
             netflix_data.profile_name == filter_profile_name
         ]
@@ -248,7 +265,7 @@ def generate_calendarlike_plot(netflix_data, image_path='./', cmap=None,
     if additional_string:
         save_name = f'{image_path}img3_netflix_horas_mes_anio' \
                     f'__{filter_profile_name}.pdf'
-
+    logging.info(f'Saving plot into {save_name}')
     plt.savefig(save_name, bbox_inches='tight')
     plt.close()
 
@@ -286,6 +303,7 @@ def process():
     -------
     None
     """
+    tick = perf_counter()
     colormap = initialize_configuration()
     general_path = os.path.join(os.path.dirname(__file__), '..', '..')
     data_path = os.path.join(general_path, 'data')
@@ -331,6 +349,9 @@ def process():
             axis=1,
         )
     generate_report(images_data_path, report_path)
+    tock = perf_counter()
+    time_it_took = tock - tick
+    logging.info(f'Extracting files took {time_it_took} seconds.')
 
 
 if __name__ == "__main__":
