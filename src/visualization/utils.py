@@ -1,4 +1,7 @@
+import logging
+import os
 import pandas as pd
+import shutil
 import unidecode
 
 
@@ -101,3 +104,66 @@ def clean_text(text):
     text = text.strip('_')
     text = unidecode.unidecode(text)
     return text
+
+
+def colorfunc(desired_list, colormap, val):
+    """
+    Helper function to assing a value to a corresponding value of a colormap
+    depending on an index.
+    Parameters
+    ----------
+    desired_list
+    colormap
+    val
+
+    Returns
+    -------
+
+    """
+    division = 1 / len(desired_list)
+    colorval = colormap(val * division + 1 / 2 * division)
+    return colorval
+
+
+def create_folder(folder_path):
+    """
+    Creates a folder in the desired path.
+
+    Parameters
+    ----------
+    folder_path: str
+        Desired folder path to create.
+
+    Returns
+    -------
+    None
+
+    """
+    existence = os.path.exists(folder_path)
+    if not existence:
+        logging.info(f'Creating folder {folder_path}')
+        os.mkdir(folder_path)
+    else:
+        logging.info('Folder already exists')
+
+
+def delete_folder(folder_path):
+    """
+    Deletes an existing folder with files in the existing path
+
+    Parameters
+    ----------
+    folder_path: str
+        Desired folder path to delete.
+
+    Returns
+    -------
+    None
+
+    """
+    existence = os.path.exists(folder_path)
+    if existence:
+        logging.info(f'Deleting folder: {folder_path}')
+        shutil.rmtree(folder_path)
+    else:
+        logging.info('Folder does not exist.')

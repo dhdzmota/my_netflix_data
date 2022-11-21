@@ -31,8 +31,7 @@ def process_netflix_data(df):
     """
     # Transform columns for an easier manipulation
     tick = perf_counter()
-    logging.info(f'Renaming columns.')
-
+    logging.info('Renaming columns.')
     new_columns = {
         col: col.lower().strip().replace(' ', '_')
         for col in df.columns
@@ -40,33 +39,39 @@ def process_netflix_data(df):
     logging.info(f'Renaming columns: {new_columns}.')
     df.rename(columns=new_columns, inplace=True)
 
+    # Transform star_time into a datetime
+    df.start_time = pd.to_datetime(df.start_time)
+    df.start_time = df.start_time  # - datetime.timedelta(hours=6)
+
     # Anonymize the different profiles
     profiles_dict = {
         profile_name: f'profile_{num}'
         for num, profile_name
-        in enumerate(df.profile_name.unique())
+        in enumerate(
+            df.groupby(
+                'profile_name'
+            ).start_time.min().sort_values().index
+        )
     }
     logging.info(f'Renaming profile_name: {profiles_dict}.')
     df.profile_name = df.profile_name.apply(
         lambda x: profiles_dict[x]
     )
-    # Transform star_time into a datetime
-    df.start_time = pd.to_datetime(df.start_time)
-    df.start_time = df.start_time  # - datetime.timedelta(hours=6)
-    logging.info(f'Getting duration as time_delta.')
+
+    logging.info('Getting duration as time_delta.')
 
     df.duration = df.duration.apply(
         get_duration_timedelta
     )
-    logging.info(f'Getting end_time from duration time_delta.')
+    logging.info('Getting end_time from duration time_delta.')
     df['end_time'] = df.start_time + df.duration
     df.duration = df.duration.apply(
         lambda x: x.total_seconds()
     )
-    logging.info(f'Changing title to new_title.')
+    logging.info('Changing title to new_title.')
     df['new_title'] = df.title.apply(lambda x: x.split(':')[0])
 
-    logging.info(f'Removing non-played by profile.')
+    logging.info('Removing non-played by profile.')
     df_no_auto_played = df[df.attributes.isna()]
     netflix_data = df_no_auto_played[
         df_no_auto_played.supplemental_video_type.isna()
@@ -130,7 +135,7 @@ def get_netflix_data(data_path):
         A data frame with the information of the processed netflix data.
 
     """
-    logging.info(f'Getting the netflix information')
+    logging.info('Getting the netflix information')
     netflix_data_all = pd.read_csv(data_path)
     processed_netflix_data = process_netflix_data(netflix_data_all)
     netflix_data_with_series = identify_series_in_data(processed_netflix_data)
@@ -224,7 +229,7 @@ def movie_and_series_information(df, profile=''):
         data.title.value_counts()
     )
 
-    logging.info(f'Analyzing only movies data.')
+    logging.info('Analyzing only movies data.')
     movies = data[data.is_serie == False]
     movies_information = movies \
         .groupby('title') \
@@ -232,7 +237,7 @@ def movie_and_series_information(df, profile=''):
         .drop_duplicates('title')
 
     # Data for series
-    logging.info(f'Analyzing only series data.')
+    logging.info('Analyzing only series data.')
     series = data[data.is_serie == True]
     series_information = series\
         .groupby('new_title')\
@@ -319,9 +324,7 @@ def get_series_info(df):
 
     """
     tick = perf_counter()
-    logging.info(
-        f'Getting additional series information.'
-    )
+    logging.info('Getting additional series information.')
     total_duration = df.duration.sum() / 3600
     max_end_time = df.end_time.max()
     min_start_time = df.start_time.min()
@@ -416,7 +419,7 @@ def arrange_information_in_dict(general_ms, profile_ms):
 
     """
     tick = perf_counter()
-    logging.info(f'Arranging information.')
+    logging.info('Arranging information.')
     info_series_movies = {'general': {}}
     sub_names = ['movie', 'series', 'movie_info', 'series_info']
     for index, sub_dataset in enumerate(sub_names):
@@ -517,6 +520,7 @@ def process():
     tock = perf_counter()
     time_it_took = tock-tick
     logging.info(f'Process took {time_it_took} seconds.')
+
 
 if __name__ == "__main__":
     process()
