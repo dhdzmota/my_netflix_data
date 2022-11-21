@@ -1,13 +1,16 @@
 import datetime
+import glob
 import logging
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
 import os
 import pandas as pd
 import seaborn as sns
 import warnings
 
 from ast import literal_eval
+from PIL import Image
 from PyPDF2 import PdfMerger
 from sklearn.cluster import DBSCAN
 from time import perf_counter
@@ -20,6 +23,9 @@ from src.visualization.utils import (
     get_pivoted_data,
     clean_text,
     create_calendar_pivot_table,
+    colorfunc,
+    create_folder,
+    delete_folder
 )
 
 
@@ -71,7 +77,7 @@ def get_stacked_profile_duration(netflix_data, image_path='./', cmap=None):
     -------
     None
     """
-    logging.info(f'Getting stacked profile duration file.')
+    logging.info('Getting stacked profile duration file.')
     pivoted_data = get_pivoted_data(netflix_data)
     pivoted_data_filtered = pivoted_data[
         [col for col in pivoted_data.columns if
@@ -120,7 +126,7 @@ def get_stacked_profile_proportion(netflix_data, image_path='./', cmap=None):
     -------
     None
     """
-    logging.info(f'Getting stacked profile proportion file.')
+    logging.info('Getting stacked profile proportion file.')
     pivoted_data = get_pivoted_data(netflix_data)
     pivoted_data_filtered = pivoted_data[
         [col for col in pivoted_data.columns if
@@ -179,7 +185,7 @@ def plot_series_time(series_data_row, image_path='./', cmap=None):
     -------
     None
     """
-    logging.info(f'Getting plot of series over time.')
+    logging.info('Getting plot of series over time.')
     series_title = series_data_row.new_title
     start_times = pd.to_datetime(literal_eval(series_data_row.all_start_times))
     hour = literal_eval(series_data_row.all_start_time_hours)
@@ -238,7 +244,7 @@ def generate_calendarlike_plot(netflix_data, image_path='./', cmap=None,
     None
 
     """
-    logging.info(f'Getting calendarlike plot.')
+    logging.info('Getting calendarlike plot.')
 
     additional_string = ''
     if filter_profile_name:
@@ -268,6 +274,275 @@ def generate_calendarlike_plot(netflix_data, image_path='./', cmap=None,
     logging.info(f'Saving plot into {save_name}')
     plt.savefig(save_name, bbox_inches='tight')
     plt.close()
+
+    nan_calendarized = calendarized.copy()
+    for col in nan_calendarized.columns:
+        nan_calendarized[col] = np.nan
+    animation_path = os.path.join(image_path, 'animations')
+    temporary_table_path = os.path.join(animation_path, 'temporary_tables')
+
+    figure_name = 'calendar_tmp'
+    if additional_string:
+        figure_name += f'__{filter_profile_name}'
+
+    figures_path_tmp = os.path.join(temporary_table_path, figure_name)
+    create_folder(animation_path)
+    create_folder(temporary_table_path)
+    create_folder(figures_path_tmp)
+    for row in nan_calendarized.index:
+        for col in nan_calendarized.columns:
+            if not np.isnan(calendarized[col].loc[row]):
+                nan_calendarized[col].loc[row] = calendarized[col].loc[row]
+                plt.figure(figsize=(20, 10))
+                sns.heatmap(
+                    nan_calendarized,
+                    annot=True,
+                    linewidth=.5,
+                    vmin=calendarized.min().min(),
+                    vmax=calendarized.max().max(),
+                    cmap=cmap,
+                )
+                title = 'Horas totales vistas de Netflix cada mes'
+                if additional_string:
+                    title += additional_string
+                plt.title(title)
+                plt.xlabel('Número de mes')
+                plt.ylabel('Año')
+
+                save_fig_name = f'{figures_path_tmp}/' \
+                                f'figure_{row}_{str(col).zfill(2)}'
+                if additional_string:
+                    save_fig_name += f'__{filter_profile_name}'
+                plt.savefig(
+                    f'{save_fig_name}.png', bbox_inches='tight'
+                )
+                plt.close()
+    gifname = 'heatmap'
+    if additional_string:
+        gifname += f'__{filter_profile_name}'
+    generate_gif_with_extra_info(
+        figures_path_tmp,
+        animation_path,
+        name=gifname
+    )
+    delete_folder(figures_path_tmp)
+
+
+def animate_df_total_time(netflix_data, days=5):
+    ''' This is a helper function to animate the total_time by filtering over
+    time the dataframe
+
+    Parameters
+    ----------
+    netflix_data: pd.DataFrame
+        Data from netflix.
+    days: int
+        The number of days that are taken into account when iterating for a
+        slight increase on the registers.
+
+    Returns
+    -------
+    dataframe_over_time: pd.DataFrame
+        A dataframe with the desired time condition so it can be properly
+        animated.
+    '''
+    logging.info(f'Using a time delta of {days} days.')
+    time_delta = datetime.timedelta(days=days)
+    upper_time_border = netflix_data.start_time.min() + time_delta
+    time_condition = netflix_data.start_time <= upper_time_border
+    logging.info('Filtering data with the time condition.')
+    dataframe_over_time = netflix_data[time_condition]
+    logging.info('Getting last value (since it is a cumulative sum).')
+    new_rows = dataframe_over_time.groupby('profile_name').max().reset_index()
+    new_rows.start_time = netflix_data.start_time.min() + time_delta
+    logging.info(
+        'Appending the last value to the dataframe for a proper animation.'
+    )
+    dataframe_over_time = dataframe_over_time.append(new_rows)
+    return dataframe_over_time
+
+
+def animate_total_time(netflix_data, colormap, image_path='./', dayspeed=5):
+    '''
+    This function gets the netflix data and creates a gif on the total amount
+    of time a profile has been watching netflix over the accounts' history.
+
+    Parameters
+    ----------
+    netflix_data: pd.DataFrame
+        Dataframe of netflix data.
+    colormap: matplotlib.colors.LinearSegmentedColormap
+        The desired colormap resampled (given a number from 0 to 1 a color of
+         the colormap will return a corresponding value mapped into 100
+         different tones).
+    image_path: str
+        The usual path that is used to save images.
+    dayspeed: int
+        Steps of which to make the number of days between the maximum date and
+         the minimum date.
+
+    Returns
+    -------
+    None
+
+    '''
+    netflix_data = netflix_data.sort_values('start_time')
+    logging.info('Obtaining the cumulative sum over time for each profile.')
+    netflix_data['duration_cumsum'] = netflix_data.groupby(
+        'profile_name').duration.cumsum()
+
+    total_profiles = netflix_data.profile_name.unique()
+    logging.info(
+        f'Resample the dataframe to the length of the '
+        f'profiles: {total_profiles}'
+    )
+    cmp = colormap.resampled(len(total_profiles))
+    profile_dict = {}
+    logging.info('Getting a color for each profile.')
+    for i, profile in enumerate(total_profiles):
+        profile_dict[profile] = colorfunc(total_profiles, cmp, i)
+
+    total_days = (
+            netflix_data.end_time.max() - netflix_data.start_time.min()
+    ).days
+    logging.info(f'Total days between min and max time in data: {total_days}')
+    logging.info(f'Creating a list from 0 to {total_days} '
+                 f'in steps of {dayspeed}')
+
+    days_passing = list(range(0, total_days, dayspeed))
+    animation_path = os.path.join(image_path, 'animations')
+    logging.info(f'Animation path:{animation_path}')
+    temporary_table_path = os.path.join(
+        animation_path, 'temporary_tables'
+    )
+    figures_path_tmp = os.path.join(
+        temporary_table_path, 'cumsum_overtime_tmp')
+
+    logging.info('Creating folders')
+    create_folder(animation_path)
+    create_folder(temporary_table_path)
+    create_folder(figures_path_tmp)
+
+    for day in days_passing:
+        fig = plt.figure()
+        ax = plt.gca()
+        nf_temporal = animate_df_total_time(netflix_data, day)
+        logging.info(f'Graph each profile in day: {day}')
+        for profile in sorted(profile_dict.keys()):
+            nf_temporal_p = nf_temporal[nf_temporal.profile_name == profile]
+            new_row = nf_temporal[
+                nf_temporal.start_time == nf_temporal.start_time.max()].copy()
+            new_row['duration_cumsum'] = nf_temporal_p['duration_cumsum'].max()
+            nf_temporal_p_actualized = nf_temporal_p.append(new_row)
+            nf_temporal_p_actualized.plot(
+                x='start_time',
+                y='duration_cumsum',
+                ax=ax,
+                label=profile,
+                color=profile_dict[profile],
+            )
+            plt.scatter(
+                [nf_temporal_p_actualized.start_time.max()],
+                [nf_temporal_p_actualized.duration_cumsum.max()],
+                color=profile_dict[profile],
+            )
+        plt.title('Tiempo total viendo Netflix')
+        plt.ylabel('Tiempo (horas)')
+        plt.xlabel('Fecha')
+        number = str(day).zfill(4)
+        plt.savefig(f'{figures_path_tmp}/figure_{number}.png')
+        plt.close()
+
+    logging.info('Generating GIF...')
+    generate_gif(figures_path_tmp, animation_path)
+    delete_folder(figures_path_tmp)
+
+
+def generate_gif(figures_path_tmp, animation_path, name='image'):
+    """
+    This function creates a gif from a bunch of saved images (in a folder).
+
+    Parameters
+    ----------
+    figures_path_tmp: str
+        path to the figures.
+    animation_path: str
+        path to the animation (where should the resulting file be)
+    name:
+        name of the animation.
+
+    Returns
+    -------
+    None
+
+    """
+    fp_in = f"{figures_path_tmp}/figure_*.png"
+    fp_out = f"{animation_path}/{name}.gif"
+    logging.info(f'Reading files from path: {figures_path_tmp}')
+    imgs = (Image.open(f) for f in sorted(glob.glob(fp_in)))
+    img = next(imgs)
+    logging.info(f'Saving Gif in {fp_out}')
+    img.save(
+        fp=fp_out,
+        format='GIF',
+        append_images=imgs,
+        save_all=True,
+        duration=15,
+        loop=0
+    )
+
+
+def generate_gif_with_extra_info(
+    figures_path_tmp, animation_path, name='image',
+):
+    """
+    This function creates a gif with extra information; it takes into account
+    the amount of images and assigns a different duration to each transitions
+    in order to create a better gif.
+
+    Parameters
+    ----------
+    figures_path_tmp: str
+        path to the figures.
+    animation_path: str
+        path to the animation (where should the resulting file be)
+    name:
+        name of the animation.
+
+    Returns
+    -------
+    None
+
+    """
+    fp_in = f"{figures_path_tmp}/figure_*.png"
+    fp_out = f"{animation_path}/{name}.gif"
+    logging.info(f'Reading files from path: {figures_path_tmp}')
+
+    dirlist = os.listdir(figures_path_tmp)
+    total_imgs = len(dirlist)
+    logging.info(f'Total files: {total_imgs}')
+
+    max_time = 100
+    min_time = 20
+    alpha = (max_time / (total_imgs) ** 2)
+
+    actual_max_time = max_time + min_time
+    time_vec_x = np.linspace(-total_imgs, 0, total_imgs)
+    time_vec = alpha * (time_vec_x) ** 2 + min_time
+    time_list = list(time_vec)
+    time_list[-1] = 1000
+
+    imgs = (Image.open(f) for f in sorted(glob.glob(fp_in)))
+    img = next(imgs)
+    logging.info(f'Saving gif in path: {fp_out}')
+    img.save(
+        fp=fp_out,
+        format='GIF',
+        append_images=imgs,
+        save_all=True,
+        duration=time_list,
+        loop=0,
+    )
 
 
 def generate_report(image_path, report_path):
@@ -329,6 +604,11 @@ def process():
     get_stacked_profile_duration(netflix_data, images_data_path, colormap)
     get_stacked_profile_proportion(netflix_data, images_data_path, colormap)
 
+    animate_total_time(
+        netflix_data,
+        colormap=colormap,
+        image_path=images_data_path
+    )
     generate_calendarlike_plot(
         netflix_data=netflix_data,
         image_path=images_data_path,

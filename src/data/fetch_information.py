@@ -1,8 +1,6 @@
 import pandas as pd
 import logging
 
-from time import perf_counter
-
 
 SECONDS_IN_HOUR = 3600
 

@@ -23,7 +23,7 @@ def extract_zip_files(file, extract_to):
     None
     """
     tick = perf_counter()
-    logging.info(f'Extracting files.')
+    logging.info('Extracting files.')
     with ZipFile(file, 'r') as zip_f:
         zip_f.extractall(extract_to)
     tock = perf_counter()
