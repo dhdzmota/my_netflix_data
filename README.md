@@ -1,6 +1,8 @@
 # My Netflix Data
 ==============================
 
+![image](./intro_img.jpg)
+
 This is a small project that does a small analysis on data provided by netflix. 
 
 To run this project, first install the requirements on requirement.txt by using the `pip install -r requirements.txt` command.
